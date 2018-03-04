@@ -2,8 +2,11 @@ package net.gotev.speechdemo;
 
 import android.Manifest;
 import android.content.DialogInterface;
+import android.hardware.Camera;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -11,6 +14,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -35,17 +39,21 @@ import retrofit2.Retrofit;
 import retrofit2.http.GET;
 import retrofit2.http.Query;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements SpeechDelegate {
 
+    public static final int MEDIA_TYPE_IMAGE = 1;
     private ImageButton button;
-    private Button speak;
     private TextView text;
-    private EditText textToSpeech;
     private SpeechProgressView progress;
     private LinearLayout linearLayout;
+    private Camera mCamera;
+    private CameraPreview mPreview;
     private final String API_KEY = "CC7s0SEdWk8ecTT3i6VoTmsAPjA";
     private final String API_URL = "https://www.cleverbot.com/";
     private Retrofit retrofit = new Retrofit.Builder()
@@ -53,6 +61,29 @@ public class MainActivity extends AppCompatActivity implements SpeechDelegate {
             .addConverterFactory(GsonConverterFactory.create())
             .build();
     Frank frank = retrofit.create(Frank.class);
+
+    private Camera.PictureCallback mPicture = new Camera.PictureCallback() {
+
+        @Override
+        public void onPictureTaken(byte[] data, Camera camera) {
+
+            File pictureFile = getOutputMediaFile(MEDIA_TYPE_IMAGE);
+            if (pictureFile == null) {
+                Log.d("CAM", "Error creating media file, check storage permissions");
+                return;
+            }
+
+            try {
+                FileOutputStream fos = new FileOutputStream(pictureFile);
+                fos.write(data);
+                fos.close();
+            } catch (FileNotFoundException e) {
+                Log.d("CAM", "File not found: " + e.getMessage());
+            } catch (IOException e) {
+                Log.d("CAM", "Error accessing file: " + e.getMessage());
+            }
+        }
+    };
 
     public static class FrankResponse {
         public final String output;
@@ -70,60 +101,6 @@ public class MainActivity extends AppCompatActivity implements SpeechDelegate {
         );
     }
 
-
-//    class JSONAsyncTask extends AsyncTask<String, Void, Boolean> {
-//
-//
-//        @Override
-//        protected void onPreExecute() {
-//            super.onPreExecute();
-//
-//        }
-//
-//        @Override
-//        protected Boolean doInBackground(String... urls) {
-//            try {
-//
-//                //------------------>>
-//                HttpGet httppost = new HttpGet("YOU URLS TO JSON");
-//                HttpClient httpclient = new DefaultHttpClient();
-//                HttpResponse response = httpclient.execute(httppost);
-//
-//                // StatusLine stat = response.getStatusLine();
-//                int status = response.getStatusLine().getStatusCode();
-//
-//                if (status == 200) {
-//                    HttpEntity entity = response.getEntity();
-//                    String data = EntityUtils.toString(entity);
-//
-//
-//                    JSONObject jsono = new JSONObject(data);
-//
-//                    return true;
-//                }
-//
-//
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            } catch (JSONException e) {
-//
-//                e.printStackTrace();
-//            }
-//            return false;
-//        }
-//
-//        protected void onPostExecute(Boolean result) {
-//
-//        }
-//    }
-
-
-    public static void main(String... args) throws IOException {
-        // Create a very simple REST adapter which points the GitHub API
-    }
-
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -134,11 +111,16 @@ public class MainActivity extends AppCompatActivity implements SpeechDelegate {
         button = (ImageButton) findViewById(R.id.button);
         button.setOnClickListener(view -> onButtonClick());
 
-        speak = (Button) findViewById(R.id.speak);
-        speak.setOnClickListener(view -> onSpeakClick());
+        mCamera = getCameraInstance();
+
+        System.out.println("AAAAA" + mCamera);
+
+        // Create our Preview view and set it as the content of our activity.
+        mPreview = new CameraPreview(this, mCamera);
+        FrameLayout preview = (FrameLayout) findViewById(R.id.camera_preview);
+        preview.addView(mPreview);
 
         text = (TextView) findViewById(R.id.text);
-        textToSpeech = (EditText) findViewById(R.id.textToSpeech) ;
         progress = (SpeechProgressView) findViewById(R.id.progress);
 
         int[] colors = {
@@ -149,41 +131,53 @@ public class MainActivity extends AppCompatActivity implements SpeechDelegate {
                 ContextCompat.getColor(this, android.R.color.holo_red_dark)
         };
         progress.setColors(colors);
+    }
 
-//        Retrofit retrofit = new Retrofit.Builder()
-//                .baseUrl(API_URL)
-//                .addConverterFactory(GsonConverterFactory.create())
-//                .build();
-//
-//        // Create an instance of our GitHub API interface.
-//        Frank frank = retrofit.create(Frank.class);
-//
-//        // Create a call instance for looking up Retrofit contributors.
-//        Call<FrankResponse> call = frank.responses("Hello", API_KEY);
-//
-//        call.enqueue(new Callback<FrankResponse>() {
-//            @Override
-//            public void onResponse(Call<FrankResponse> call, Response<FrankResponse> response) {
-//                FrankResponse myItems = response.body();
-//                Log.d("ANDRES_GAY", myItems.output);
-//            }
-//
-//
-//            @Override
-//            public void onFailure(Call<FrankResponse> call, Throwable t) {
-//                Log.e("ANDRES_MESSED", "someError" + t.getMessage());
-//            }
-//        });
+    /** A safe way to get an instance of the Camera object. */
+    public static Camera getCameraInstance() {
+        Camera c = null;
+        try {
+            c = Camera.open(); // attempt to get a Camera instance
+        }
+        catch (Exception e){
+            // Camera is not available (in use or does not exist)
+            System.out.println(e);
+        }
+        return c; // returns null if camera is unavailable
+    }
 
-//        // Fetch and print a list of the contributors to the library.
-//        try {
-//            List<Response> responses = call.execute().body();
-//            for (Response response : responses) {
-//                System.out.println(response.output);
-//            }
-//        } catch (Exception e) {
-//            System.out.println(e);
-//        }
+    /** Create a file Uri for saving an image or video */
+    private static Uri getOutputMediaFileUri(int type){
+        return Uri.fromFile(getOutputMediaFile(type));
+    }
+
+    /** Create a File for saving an image or video */
+    private static File getOutputMediaFile(int type){
+        // To be safe, you should check that the SDCard is mounted
+        // using Environment.getExternalStorageState() before doing this.
+
+        File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_PICTURES), "MyCameraApp");
+        // This location works best if you want the created images to be shared
+        // between applications and persist after your app has been uninstalled.
+
+        // Create the storage directory if it does not exist
+        if (! mediaStorageDir.exists()) {
+            if (! mediaStorageDir.mkdirs()) {
+                Log.d("MyCameraApp", "failed to create directory");
+                return null;
+            }
+        }
+
+        // Create a media file name
+        File mediaFile;
+        if (type == MEDIA_TYPE_IMAGE) {
+            mediaFile = new File(mediaStorageDir.getPath() + File.separator + "Frank.jpg");
+        } else {
+            return null;
+        }
+
+        return mediaFile;
     }
 
     @Override
@@ -206,6 +200,7 @@ public class MainActivity extends AppCompatActivity implements SpeechDelegate {
                         }
                     });
         }
+        mCamera.takePicture(null, null, mPicture);
     }
 
     private void onRecordAudioPermissionGranted() {
@@ -222,30 +217,6 @@ public class MainActivity extends AppCompatActivity implements SpeechDelegate {
         } catch (GoogleVoiceTypingDisabledException exc) {
             showEnableGoogleVoiceTyping();
         }
-    }
-
-    private void onSpeakClick() {
-        if (textToSpeech.getText().toString().trim().isEmpty()) {
-            Toast.makeText(this, R.string.input_something, Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        Speech.getInstance().say(textToSpeech.getText().toString().trim(), new TextToSpeechCallback() {
-            @Override
-            public void onStart() {
-                Toast.makeText(MainActivity.this, "TTS onStart", Toast.LENGTH_SHORT).show();
-            }
-
-            @Override
-            public void onCompleted() {
-                Toast.makeText(MainActivity.this, "TTS onCompleted", Toast.LENGTH_SHORT).show();
-            }
-
-            @Override
-            public void onError() {
-                Toast.makeText(MainActivity.this, "TTS onError", Toast.LENGTH_SHORT).show();
-            }
-        });
     }
 
     @Override
